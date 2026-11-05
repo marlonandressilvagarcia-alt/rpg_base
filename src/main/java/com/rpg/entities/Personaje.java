@@ -20,7 +20,11 @@ import java.util.Set;
 // (con serialVersionUID). Piensa que campos son transient y que clases anidadas (Inventario, Pocion, Arma,
 // Gremio, EstadoEfecto, enums) tambien deben ser Serializable, o tendras NotSerializableException.
 // Ojo: Gremio y Personaje se referencian entre si (la serializacion maneja el ciclo).
-public abstract class Personaje implements ICombatiente {
+public abstract class Personaje implements ICombatiente, java.io.Serializable {
+    private static final long serialVersionUID = 1L;
+
+    // Campo transient de ejemplo (al deserializar volverá a su valor por defecto: null o 0)
+    private transient String sesionTemporal = "SesionActiva";
 
     private static final int VIDA_BASE = 100;
     private static final int ATAQUE_BASE = 10;
@@ -96,17 +100,15 @@ public abstract class Personaje implements ICombatiente {
 
     // ---- vida
 
-    public void recibirDanio(int cantidad) {
+    public synchronized void recibirDanio(int cantidad) {
         if (cantidad < 0) {
             throw new IllegalArgumentException("El danio no puede ser negativo");
         }
-        // TALLER CONCURRENCIA: lee, calcula y escribe la vida en pasos separados sin proteccion.
-        // Con varios hilos sobre el mismo Personaje (aqui y en curar), el resultado no es seguro.
         setVida(vida - cantidad);
     }
 
     /** @return vida realmente recuperada */
-    public int curar(int cantidad) {
+    public synchronized int curar(int cantidad) {
         if (cantidad < 0) {
             throw new IllegalArgumentException("La curacion no puede ser negativa");
         }

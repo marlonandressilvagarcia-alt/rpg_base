@@ -22,12 +22,40 @@ public class TorneoManager {
     public Personaje jugarTorneo() {
         List<Personaje> gladiadores = crearGladiadores().getMiembros();
 
-        // TALLER CONCURRENCIA: las dos semifinales se simulan una tras otra en el hilo principal.
-        // La final solo puede empezar cuando ambas hayan terminado.
-        Personaje finalista1 = simularSemifinal(gladiadores.get(0), gladiadores.get(1));
-        Personaje finalista2 = simularSemifinal(gladiadores.get(2), gladiadores.get(3));
+        // Usamos arrays de 1 elemento para poder capturar el ganador dentro del hilo
+        final Personaje[] finalista1 = new Personaje[1];
+        final Personaje[] finalista2 = new Personaje[1];
 
-        return simularFinal(finalista1, finalista2);
+        Thread semi1 = new Thread(() -> {
+            finalista1[0] = simularSemifinal(gladiadores.get(0), gladiadores.get(1));
+        });
+
+        Thread semi2 = new Thread(() -> {
+            finalista2[0] = simularSemifinal(gladiadores.get(2), gladiadores.get(3));
+        });
+
+        // 1. Estado antes de arrancar (Debe ser NEW)
+        System.out.println("Estado antes de start -> semi1: " + semi1.getState() + " | semi2: " + semi2.getState());
+
+        semi1.start();
+        semi2.start();
+
+        // 2. Estado durante la ejecución (Debe ser RUNNABLE o TIMED_WAITING)
+        System.out.println("Estado durante ejecución -> semi1: " + semi1.getState() + " | semi2: " + semi2.getState());
+
+        try {
+            // El hilo principal espera a que ambas semifinales terminen
+            semi1.join();
+            semi2.join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // 3. Estado después del join (Debe ser TERMINATED)
+        System.out.println("Estado después de join -> semi1: " + semi1.getState() + " | semi2: " + semi2.getState());
+
+        // La final solo empieza cuando ambos hilos terminaron y tenemos los ganadores
+        return simularFinal(finalista1[0], finalista2[0]);
     }
 
     public Personaje simularSemifinal(Personaje a, Personaje b) {

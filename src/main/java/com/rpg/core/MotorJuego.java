@@ -16,25 +16,40 @@ import com.rpg.items.Pocion;
 import java.util.List;
 import java.util.Random;
 
+
+import java.io.Serializable;
+import java.util.List;
+import java.util.Random;
+
+
 /** Coordina el flujo del juego: crear heroe, combatir, torneo, bestiario y guardado. */
-public class MotorJuego {
+import java.io.Serializable; // Asegúrate de tener este import arriba
+import java.util.List;
+import java.util.Random;
+
+/** Coordina el flujo del juego: crear heroe, combatir, torneo, bestiario y guardado. */
+public class MotorJuego implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     private static final String NOMBRE_GREMIO = "Guardianes del Alba";
     private static final int CURACION_POCION_VIDA = 30;
 
-    private final Consola consola;
+    // Atributos lógicos o auxiliares marcados como transient para evitar errores de serialización
+    private final transient Consola consola;
     private final RegistroCombate registro = new RegistroCombate();
-    private final Arena arena = new Arena(registro, new Random());
-    private final Bestiario bestiario = new Bestiario();
-    private final PerfilJugador perfil = new PerfilJugador();
-    private final Gremio gremio = new Gremio(NOMBRE_GREMIO);
-    private final TorneoManager torneo = new TorneoManager(arena, registro);
-    // TALLER ARCHIVOS: ultimoGuardado es solo el estado de la partida en memoria. Aqui (o en un metodo
-    // nuevo como cargarProgreso) iria la carga de una partida guardada en disco; llamala desde Main.
+    private final transient Arena arena = new Arena(registro, new Random());
+    private final transient Bestiario bestiario = new Bestiario();
+    private final PerfilJugador perfil = new PerfilJugador(); // Este sí se guarda porque implementa Serializable
+    private final Gremio gremio = new Gremio(NOMBRE_GREMIO); // Este también se guarda
+    private final transient TorneoManager torneo = new TorneoManager(arena, registro);
+
     private String ultimoGuardado = "";
 
     public MotorJuego(Consola consola) {
         this.consola = consola;
+        Thread hiloDaemon = new Thread(new com.rpg.concurrency.AutoGuardadoDaemon(this, 30000));
+        hiloDaemon.setDaemon(true);
+        hiloDaemon.start();
     }
 
     // ---- opciones del menu principal
@@ -172,10 +187,19 @@ public class MotorJuego {
      * Pide la accion al jugador y se queda esperando hasta que escriba algo.
      */
     private Accion pedirAccion() {
-        // TALLER CONCURRENCIA: esta lectura bloquea el programa sin limite de tiempo.
-        // Aqui debe entrar el temporizador de turno con su callback.
         System.out.println("1. Atacar  2. Habilidad especial  3. Usar pocion  4. Ver estado  0. Huir");
+        System.out.println("Tienes 15 segundos para responder...");
+
+        final Accion[] accionSeleccionada = new Accion[1];
+        Thread temporizador = new Thread(new com.rpg.concurrency.TemporizadorTurnoTask(15, () -> {
+            System.out.println("\n[¡Tiempo agotado! Se pasa el turno automáticamente].");
+            accionSeleccionada[0] = Accion.ESTADO;
+        }));
+
+        temporizador.start();
         int opcion = consola.leerEntero("Accion: ", 0, 4);
+        temporizador.interrupt(); // Cancela el temporizador si el jugador respondió a tiempo
+
         return switch (opcion) {
             case 1 -> Accion.ATACAR;
             case 2 -> Accion.ESPECIAL;
@@ -257,9 +281,6 @@ public class MotorJuego {
      * archivo. Hoy solo se invoca al terminar una pelea.
      */
     public void guardarProgreso() {
-        // TALLER ARCHIVOS: ademas de dejar el texto en memoria, escribe la partida en disco (por ejemplo un
-        // .txt con BufferedWriter, y/o un .dat serializando el estado con ObjectOutputStream). Usa try-with-resources.
-        // TALLER CONCURRENCIA: este guardado es manual. Debera hacerse solo, de fondo, mientras se juega.
         StringBuilder contenido = new StringBuilder();
         contenido.append("=== PARTIDA RPG ===").append(System.lineSeparator());
         contenido.append("Victorias: ").append(perfil.getVictorias()).append(System.lineSeparator());
@@ -271,7 +292,12 @@ public class MotorJuego {
         contenido.append(System.lineSeparator()).append("--- Ultimo combate ---").append(System.lineSeparator());
         contenido.append(registro.getTexto());
         ultimoGuardado = contenido.toString();
-        System.out.println("[Progreso guardado en memoria]");
+
+        // Integración con el taller de archivos (BufferedWriter y Serialización)
+        com.rpg.persistencia.GestorPersistencia.guardarLogCombate(registro.getTexto(), true);
+        com.rpg.persistencia.GestorPersistencia.guardarObjetoPartida(this);
+
+        System.out.println("[Progreso guardado en memoria y disco]");
     }
 
     public String getUltimoGuardado() {

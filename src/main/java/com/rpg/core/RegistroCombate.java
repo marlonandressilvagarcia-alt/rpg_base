@@ -1,7 +1,10 @@
 package com.rpg.core;
 
+import java.io.Serializable;
+
 /** Imprime cada evento del combate y lo guarda para incluirlo en el guardado de la partida. */
-public class RegistroCombate {
+public class RegistroCombate implements Serializable {
+    private static final long serialVersionUID = 1L;
 
     private final StringBuilder texto = new StringBuilder();
 
@@ -18,8 +21,6 @@ public class RegistroCombate {
         texto.setLength(0);
     }
 
-    // TALLER ARCHIVOS: aqui iria volcar el registro de combate a un archivo .txt (BufferedWriter + FileWriter,
-    // con append si quieres conservar combates anteriores) y leerlo de vuelta con BufferedReader.
     public String getTexto() {
         return texto.toString();
     }
