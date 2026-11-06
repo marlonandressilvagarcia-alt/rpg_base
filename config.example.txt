@@ -1,0 +1,3 @@
+url=jdbc:mysql://localhost:3306/nombre_bd_ejemplo
+usuario=tu_usuario_ejemplo
+clave=tu_clave_ejemplo
